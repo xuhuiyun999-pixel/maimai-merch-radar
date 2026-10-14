@@ -1,10 +1,76 @@
 import unittest
+from html.parser import HTMLParser
 
 from maimai_radar.models import Card, QueryResult
 from maimai_radar.report import render_report
 
 
+class ReportStructure(HTMLParser):
+    def __init__(self, html):
+        super().__init__()
+        self.details = []
+        self.articles = []
+        self.notices = []
+        self.article = None
+        self.in_title = False
+        self.feed(html)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'details':
+            self.details.append(attrs)
+        elif tag == 'article':
+            history = next((d for d in self.details if d.get('id') == 'history'), None)
+            self.article = {'title': '', 'history': history is not None, 'collapsed': history is not None and 'open' not in history}
+        elif tag == 'h3':
+            self.in_title = True
+        elif tag == 'div' and 'notice' in attrs.get('class', '').split():
+            self.notices.append(attrs)
+
+    def handle_data(self, data):
+        if self.in_title and self.article is not None:
+            self.article['title'] += data
+
+    def handle_endtag(self, tag):
+        if tag == 'details':
+            self.details.pop()
+        elif tag == 'h3':
+            self.in_title = False
+        elif tag == 'article':
+            self.articles.append(self.article)
+            self.article = None
+
+
 class ReportTests(unittest.TestCase):
+    def test_all_history_is_collapsed_and_informational(self):
+        html = render_report([QueryResult('mall-points-products', 'ok')], [
+            Card('虚构历史礼盒', '周边商品', source_tool='mall-points-products', phase='已过接口展示期限')])
+        page = ReportStructure(html)
+        self.assertEqual(page.articles, [{'title': '虚构历史礼盒', 'history': True, 'collapsed': True}])
+        self.assertEqual(len(page.notices), 1)
+        self.assertEqual(page.notices[0].get('role'), 'status')
+        self.assertIn('info', page.notices[0]['class'].split())
+
+    def test_history_does_not_hide_current_or_unknown_records(self):
+        html = render_report([], [
+            Card('虚构历史礼盒', '周边商品', phase='已过接口展示期限'),
+            Card('虚构展示期内商品', '周边商品', phase='接口展示期内 · 库存未核实'),
+            Card('虚构日期未知商品', '类型待确认', phase='时间未确认'),
+            Card('虚构预告商品', '周边商品', phase='尚未到接口展示期'),
+        ])
+        articles = {a['title']: a for a in ReportStructure(html).articles}
+        self.assertEqual(len(articles), 4)
+        self.assertTrue(articles['虚构历史礼盒']['collapsed'])
+        for title in ('虚构展示期内商品', '虚构日期未知商品', '虚构预告商品'):
+            self.assertFalse(articles[title]['history'])
+
+    def test_history_notice_does_not_suppress_actual_failure(self):
+        html = render_report([QueryResult('mall-points-products', 'ok'), QueryResult('campaign-calendar', 'failed', message='活动查询失败')], [
+            Card('虚构历史礼盒', '周边商品', source_tool='mall-points-products', phase='已过接口展示期限')])
+        notices = ReportStructure(html).notices
+        self.assertEqual({n.get('role') for n in notices}, {'status', 'alert'})
+        self.assertIn('活动查询失败', html)
+
     def test_script_payload_is_escaped(self):
         card = Card('<script>alert(1)</script>', '周边商品', description='<img src=x onerror=alert(1)>')
         html = render_report([], [card])
