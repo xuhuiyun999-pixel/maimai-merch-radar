@@ -55,3 +55,39 @@ class NormalizeTests(unittest.TestCase):
             'date': '2026-10-15', 'events': [{'activityTitle': '虚构玩具活动', 'activitySubTitle': '原始说明'}],
         }]}}, '2026-10-14T12:00:00+08:00')
         self.assertEqual(normalize(result)[0].title, '虚构玩具活动')
+
+    def detail(self, **overrides):
+        data = {'spuName': '虚构餐券', 'spuId': 1, 'categoryRuleId': '1>4>13',
+                'skuList': [{'skuId': 2, 'points': '800', 'price': '0', 'extTradePrice': '9.9'}],
+                'note': '<p>须另付9.9元<br>有效期见券面</p>', 'selling': '虚构说明',
+                'upDate': '2026-06-01 00:00:00', 'downDate': '2026-12-30 23:59:59', **overrides}
+        return QueryResult('mall-product-detail', 'ok', {'success': True, 'data': data}, '2026-10-14T12:00:00+08:00')
+
+    def test_successful_detail_preserves_specs_and_payment_terms(self):
+        result = self.detail()
+        cards = normalize(result)
+        self.assertEqual(result.status, 'ok')
+        self.assertEqual(len(cards), 1)
+        card = cards[0]
+        self.assertEqual(card.kind, '餐券详情（非周边）')
+        self.assertEqual(card.skus[0].points, '800')
+        self.assertEqual(card.skus[0].cash, '0')
+        self.assertEqual(card.skus[0].trade_price, '9.9')
+        self.assertIn('须另付9.9元\n有效期见券面', card.notes)
+        self.assertIn('非券面有效期', card.dates)
+
+    def test_detail_preserves_all_returned_skus(self):
+        cards = normalize(self.detail(skuList=[{'skuId': 2, 'points': '0', 'price': '0'}, {'skuId': 3, 'points': '500', 'price': '1'}]))
+        self.assertEqual([s.item_id for s in cards[0].skus], [2, 3])
+        self.assertEqual(cards[0].skus[0].points, '0')
+
+    def test_unknown_detail_spec_structure_is_not_empty(self):
+        result = self.detail(skuList=['unexpected'])
+        self.assertEqual(normalize(result), [])
+        self.assertEqual(result.status, 'unsupported')
+
+    def test_detail_rich_text_is_plain_and_images_are_safe_links(self):
+        card = normalize(self.detail(note='<p>使用须知</p><script>badcode()</script>', detail='<p>详情文字</p><img src="https://img.mcd.cn/example.png"><img src="javascript:alert(1)">', images=['https://img.mcd.cn/example.png']))[0]
+        self.assertNotIn('badcode', card.notes)
+        self.assertEqual(card.detail_text, '详情文字')
+        self.assertEqual(card.image_urls, ['https://img.mcd.cn/example.png'])

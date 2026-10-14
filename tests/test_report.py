@@ -45,3 +45,19 @@ class ReportTests(unittest.TestCase):
         self.assertNotIn('已使用接口提供的周边类目筛选', html)
         self.assertNotIn('<h2>周边活动线索</h2>', html)
         self.assertNotIn('部分查询未完成', html)
+
+    def test_successful_detail_shows_specs_notes_and_voucher_cost_boundary(self):
+        from maimai_radar.normalize import normalize
+        result = QueryResult('mall-product-detail', 'ok', {'data': {
+            'spuName': '虚构餐券', 'spuId': 1, 'categoryRuleId': '1>4>13',
+            'skuList': [{'skuId': 2, 'points': '800', 'price': '0', 'extTradePrice': '9.9'}],
+            'note': '<p>须另付9.9元</p>', 'images': ['https://img.mcd.cn/example.png'],
+        }})
+        cards = normalize(result)
+        html = render_report([result], cards)
+        self.assertIn('虚构餐券', html)
+        self.assertIn('规格与金额', html)
+        self.assertIn('须另付9.9元', html)
+        self.assertIn('不等于免费获得餐品', html)
+        self.assertIn('https://img.mcd.cn/example.png', html)
+        self.assertNotIn('<img', html)

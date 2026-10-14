@@ -2,7 +2,8 @@ import re
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
-from .models import Card, QueryResult
+from .models import Card, QueryResult, Sku
+from .rich_text import parse_html
 
 MERCH_WORDS = re.compile(r'周边|联名|联动|玩具|徽章|礼盒|棒球帽|钥匙|公仔|丝巾|贴纸|盲盒|挂件')
 
@@ -103,6 +104,8 @@ def _normalize(result: QueryResult) -> list[Card]:
                 )
                 indexed[key] = card
                 cards.append(card)
+    elif result.tool == 'mall-product-detail':
+        return normalize_detail(data, result)
     else:
         return unsupported(result)
     if not cards:
@@ -113,6 +116,39 @@ def _normalize(result: QueryResult) -> list[Card]:
     else:
         result.message = '接口提示仍有后续数据，本报告只展示已返回部分。'
     return cards
+
+
+def normalize_detail(data, result: QueryResult) -> list[Card]:
+    if not isinstance(data, dict) or not isinstance(data.get('spuName'), str) or not data['spuName'] or not isinstance(data.get('skuList'), list):
+        return unsupported(result)
+    if any(not isinstance(item, dict) for item in data['skuList']):
+        return unsupported(result)
+    for field_name in ('note', 'detail', 'selling'):
+        if data.get(field_name) is not None and not isinstance(data[field_name], str):
+            return unsupported(result)
+    notes, note_images = parse_html(data.get('note') or '')
+    detail, detail_images = parse_html(data.get('detail') or '')
+    description, _ = parse_html(data.get('selling') or '')
+    images = data.get('images') or []
+    if not isinstance(images, list):
+        return unsupported(result)
+    images = list(dict.fromkeys(url for raw in images + note_images + detail_images if (url := safe_url(raw))))
+    rule = data.get('categoryRuleId')
+    rule = rule if isinstance(rule, str) else ''
+    voucher = rule == '1>4' or rule.startswith('1>4>')
+    merchandise = rule == '2>8' or rule.startswith('2>8>')
+    kind = '餐券详情（非周边）' if voucher else '周边商品详情' if merchandise else '商品详情（类别待确认）'
+    dates = None
+    if data.get('upDate') or data.get('downDate'):
+        dates = f"接口展示期：{data.get('upDate') or '接口未提供'} 至 {data.get('downDate') or '接口未提供'}"
+        if voucher:
+            dates += '（非券面有效期）'
+    skus = [Sku(scalar(item.get('skuId')), scalar(item.get('points')), scalar(item.get('price')), scalar(item.get('extTradePrice'))) for item in data['skuList']]
+    card = Card(data['spuName'], kind, dates=dates, description=description, source_tool=result.tool,
+                phase=display_phase({'upTime': data.get('upDate'), 'downTime': data.get('downDate')}, result.queried_at),
+                item_id=scalar(data.get('spuId')), skus=skus, notes=notes, detail_text=detail, image_urls=images)
+    result.message = '已读取商品详情及规格；库存、兑换资格和券面有效期仍需在官方渠道确认。'
+    return [card]
 
 
 def unsupported(result: QueryResult) -> list[Card]:

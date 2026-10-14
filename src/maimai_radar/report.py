@@ -71,14 +71,28 @@ def render_detail_report(results: list[QueryResult], cards: list[Card], *, demo:
         f'<p>{e(r.message or "仅展示本次详情返回范围。")}</p><small>{e(r.queried_at)} · 来源：{e(r.tool)}</small></div>'
         for r in results
     )
-    content = '<div class="grid">' + ''.join(card_html(card) for card in cards) + '</div>' if cards else '<p class="empty">接口没有返回可展示的详情资料。请查看上面的具体原因；不能据此推断其他商品的情况。</p>'
-    return f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>麦麦周边雷达 · 商品详情</title><style>{CSS}</style></head><body><main class="shell">
+    content = ''.join(detail_card_html(card) for card in cards) if cards else '<p class="empty">接口没有返回可展示的详情资料。请查看上面的具体原因；不能据此推断其他商品的情况。</p>'
+    extra_css = '.detailcard{margin-top:20px}.detailcard h3{font-size:26px}.detailcard h4{margin:20px 0 8px}.specs{overflow-x:auto}.specs table{border-collapse:collapse;min-width:460px;width:100%;font-size:13px}.specs th,.specs td{text-align:left;padding:12px;border-bottom:1px solid var(--line)}.specs th{background:var(--soft)}.detailcard .description{line-height:1.9}.image-links{display:flex;gap:18px;flex-wrap:wrap;font-size:13px}'
+    return f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>麦麦周边雷达 · 商品详情</title><style>{CSS}{extra_css}</style></head><body><main class="shell">
 <header class="top"><span class="brand">麦麦周边雷达</span><span class="independent">独立参赛项目 · 非官方应用</span></header>
 <div class="masthead"><div><p class="eyebrow">商品详情 · 单独查询记录</p><h1>{title}</h1><p class="intro">本次只查询选定商品的详情。详情记录单独保存，原有周边与活动总览保持不变。</p></div><aside class="receipt"><strong>详情查询回执</strong><hr><small>{e(stamp)}</small><small>{'虚构样例' if demo else '实际接口查询记录'}</small></aside></div>
 {demo_note}<section><div class="sectionhead"><h2>本次查询结果</h2></div><div class="checks">{checks}</div>{content}</section>
 <nav class="nav"><a href="../radar.html">返回已有的周边与活动总览</a></nav>
 <footer><span>查询结果不代表库存、兑换资格或报名状态。</span><span>未执行下单、兑换或任何其他业务写入。</span></footer>
 </main></body></html>'''
+
+
+def detail_card_html(card: Card) -> str:
+    voucher = card.kind == '餐券详情（非周边）'
+    notice = '<div class="notice">兑换餐券不等于免费获得餐品。请核对使用须知中的后续消费金额与券面有效期。</div>' if voucher else ''
+    unknown = '接口未提供'
+    def amount(value):
+        return e(value if value is not None else unknown)
+    rows = ''.join(f'<tr><td>规格 {index} · 编号 {amount(s.item_id)}</td><td>{amount(s.points)}</td><td>{amount(s.cash)}</td><td>{amount(s.trade_price)}</td></tr>' for index, s in enumerate(card.skus, 1))
+    trade_label = '用券消费金额参考*' if voucher else '其他金额字段*'
+    specs = f'<div class="specs"><table><thead><tr><th scope="col">规格</th><th scope="col">兑换积分</th><th scope="col">接口兑换金额（元）</th><th scope="col">{trade_label}</th></tr></thead><tbody>{rows}</tbody></table></div>' if rows else '<p class="empty">接口未提供可展示的规格。</p>'
+    images = ''.join(f'<a href="{e(url)}" target="_blank" rel="noopener noreferrer">查看商品图片 {i} ↗</a>' for i, raw in enumerate(card.image_urls, 1) if (url := safe_url(raw)))
+    return f'''<article class="card detailcard"><p class="tag">{e(card.kind)}</p><h3>{e(card.title)}</h3><span class="phase">{e(card.phase)}</span><p class="description">{e(card.description or '接口未提供简要说明')}</p><p class="dates">{e(card.dates or '接口未提供时间信息')}</p>{notice}<h4>规格与金额</h4>{specs}<p class="lead">* 该列对应服务返回的 extTradePrice，具体含义与应付条件请核对商品使用须知，不作最终结算保证。</p><h4>使用须知</h4><p class="description">{e(card.notes or '接口未提供使用须知')}</p><h4>商品说明</h4><p class="description">{e(card.detail_text or ('接口详情包含图片，可点击下方链接查看。' if card.image_urls else '接口未提供文字详情'))}</p><div class="image-links">{images}</div><div class="source">来源：{e(card.source_tool)} · 商品编号：{e(card.item_id if card.item_id is not None else unknown)}。未执行兑换或下单。</div></article>'''
 
 
 def write_report(html: str, output: Path) -> Path:

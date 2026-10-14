@@ -67,3 +67,28 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(main(), 1)
             self.assertEqual(overview.read_text(encoding='utf-8'), 'OVERVIEW')
             self.assertTrue((root / 'output/details/radar.html').is_file())
+
+    def test_successful_detail_replaces_failure_and_preserves_overview(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'output/details').mkdir(parents=True)
+            overview = root / 'output/radar.html'
+            overview.write_text('OVERVIEW', encoding='utf-8')
+            (root / 'output/details/radar.html').write_text('OLD FAILURE', encoding='utf-8')
+            arguments = root / 'arguments.json'
+            arguments.write_text('{"spuId":1}', encoding='utf-8')
+            result = QueryResult('mall-product-detail', 'ok', {'data': {
+                'spuName': '虚构餐券', 'categoryRuleId': '1>4>13',
+                'skuList': [{'skuId': 2, 'points': '800', 'price': '0', 'extTradePrice': '9.9'}],
+                'note': '<p>另付9.9元，券面有效期另见说明</p>',
+            }}, '2026-10-14T12:00:00+08:00')
+            with patch('maimai_radar.cli.project_root', return_value=root), patch('maimai_radar.cli.load_token', return_value='synthetic-secret'), patch('maimai_radar.cli.collect', new=AsyncMock(return_value=[result])), patch('sys.argv', ['radar', 'query', '--tool', 'mall-product-detail', '--arguments-file', str(arguments)]), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(), 0)
+            detail = json.loads((root / 'output/details/radar.json').read_text(encoding='utf-8'))
+            self.assertEqual(detail['queries'][0]['status'], 'ok')
+            self.assertEqual(detail['cards'][0]['skus'][0]['trade_price'], '9.9')
+            html = (root / 'output/details/radar.html').read_text(encoding='utf-8')
+            self.assertIn('另付9.9元', html)
+            self.assertIn('餐券详情（非周边）', html)
+            self.assertNotIn('OLD FAILURE', html)
+            self.assertEqual(overview.read_text(encoding='utf-8'), 'OVERVIEW')
