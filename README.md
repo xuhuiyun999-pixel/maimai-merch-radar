@@ -76,6 +76,6 @@ Token 在[麦当劳 MCP 官网](https://open.mcd.cn/mcp)登录后申请。`confi
 
 参赛文件包括本 README、官方原文 `CONTEST_DECLARATION.md`、`MCP_INTEGRATION.md`、脱敏配置示例和技能/源码。没有真实使用 WorkBuddy，因此没有提交 `workbuddy.md`，也不申领其专项奖励。
 
-当前为本地开发版，尚未公开发布或提交报名。浏览器自动视觉验证受到工具的本地文件访问策略限制，布局仍需本人在本机浏览器确认。仓库链接和 Owner 确定后，再生成最终报名 Issue；不使用虚构地址报名。
+项目源码已公开发布到 [xuhuiyun999-pixel/maimai-merch-radar](https://github.com/xuhuiyun999-pixel/maimai-merch-radar)。浏览器自动视觉验证受到工具的本地文件访问策略限制，布局仍需本人在本机浏览器确认。报名状态以官方活动仓库中的报名 Issue 回复为准；源码公开不等于报名或获奖审核通过。
 
 详情见 [MCP_INTEGRATION.md](MCP_INTEGRATION.md) 和[官方比赛规则](https://github.com/M-China/mcd-developer-innovation-challenge/blob/main/activityGuidelines.md)。
