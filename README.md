@@ -4,6 +4,18 @@
 
 这是基于麦当劳 MCP 的独立参赛项目，非官方应用。第一版只查询信息，不兑换、不下单、不抽奖、不领券、不报名。
 
+**先看示例 → [无需 Token 的结果示例](examples/DEMO.md)** · **开始试用 → [下载完整项目](https://github.com/xuhuiyun999-pixel/maimai-merch-radar/archive/refs/heads/main.zip)** · **[安装步骤](#安装)**
+
+## 它适合解决什么问题
+
+| 你想了解 | 这个项目会整理什么 |
+| --- | --- |
+| 最近有什么周边或联名活动？ | 周边类目商品、当月活动中的周边线索及原始说明 |
+| 一件周边需要多少积分或现金？ | 接口明确返回的积分、现金字段与展示期限，缺失内容标明未知 |
+| 为什么列表里有商品，详情却看不到？ | 保留“商品已下架”等真实失败状态，避免把历史记录当作当前可兑换 |
+
+没有编程经验也可以先阅读示例；运行真实查询需要 Python 3.12+ 和你自己的麦当劳 MCP Token。结果保存在本机，不需要额外购买模型 API 服务。
+
 ## 已能运行的流程
 
 “最近有什么麦当劳周边和活动？” → 真实查询周边类目与当月日历 → 整理参与说明、积分/现金字段、日期与来源 → 生成本地报告。
@@ -15,7 +27,7 @@
 
 ## 安装
 
-需要 Python 3.12 或更新版本。下载完整项目并进入项目目录，在 PowerShell 中逐行执行：
+需要 Python 3.12 或更新版本。先下载上方 ZIP 并解压，在解压后的项目文件夹中打开 PowerShell，再逐行执行：
 
 ```powershell
 python -m venv .venv
@@ -79,3 +91,9 @@ Token 在[麦当劳 MCP 官网](https://open.mcd.cn/mcp)登录后申请。`confi
 项目源码已公开发布到 [xuhuiyun999-pixel/maimai-merch-radar](https://github.com/xuhuiyun999-pixel/maimai-merch-radar)。浏览器自动视觉验证受到工具的本地文件访问策略限制，布局仍需本人在本机浏览器确认。报名状态以官方活动仓库中的报名 Issue 回复为准；源码公开不等于报名或获奖审核通过。
 
 详情见 [MCP_INTEGRATION.md](MCP_INTEGRATION.md) 和[官方比赛规则](https://github.com/M-China/mcd-developer-innovation-challenge/blob/main/activityGuidelines.md)。
+
+## 反馈与支持
+
+欢迎在 [Issues](https://github.com/xuhuiyun999-pixel/maimai-merch-radar/issues) 反馈安装、使用或结果解释上的问题。请说明你执行了哪条命令、看到什么提示；不要提交 Token、`.env` 或原始会员数据。
+
+如果这个项目对你有用，欢迎给仓库一个 Star，让更多有相同需求的人发现它。
